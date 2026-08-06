@@ -8,11 +8,16 @@
 ## 1. 環境準備
 
 ```powershell
-# 建立並啟用虛擬環境（已存在的話跳過建立）
+# Windows (PowerShell)
 python -m venv .venv
 .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
 
-# 安裝套件
+```bash
+# macOS / Linux
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -61,6 +66,19 @@ python nba_matchup.py
 
 ---
 
+## 2.5 用 Docker 執行（免裝 Python 環境）
+
+專案內附 `Dockerfile`，也可以直接用容器跑：
+
+```bash
+docker build -t nba-predictor .
+docker run -it nba-predictor
+```
+
+`-it` 是必須的，因為程式是互動式的，會等待輸入模式與對戰組合。
+
+---
+
 ## 3. 輸出內容說明
 
 每次查詢會印出多張表格：
@@ -71,8 +89,7 @@ python nba_matchup.py
 | ⚡ 進攻/防守效率 | 本賽季 Offensive/Defensive Rating 與聯盟排名 |
 | 🎯 五成球隊戰況 | 對戰績五成以上/以下球隊的勝負紀錄 |
 | 🔥 近期 10 場 | 近10場戰績、平均得分/失分 |
-| 📈 近 10 場得失分 | 近10場每場得分、失分明細 |
-| 🔮 預測比分 | 「近10場平均」與「Pace法（攻守效率 x 平均節奏）」兩種預測得分 |
+| 🔮 預測比分 | 「近10場平均」與「整季PACE法（攻守效率 x 兩隊整季官方PACE）」兩種預測得分，PACE 取自 NBA.com Advanced 數據的官方欄位，不是自行估算 |
 
 ---
 
@@ -80,8 +97,8 @@ python nba_matchup.py
 
 - **第一次查詢要等很久**：程式會先呼叫 NBA.com API 取得整季進階數據，
   為了避免被限流，呼叫前會固定等待約 10 秒，這是正常現象，只有第一次需要等。
-- **季後賽模式查不到資料 / 顯示 0-0**：季後賽期間才會有季後賽賽程資料；
-  若該隊尚未打季後賽（已淘汰或還沒開打），對應的近況數據會是空的或 0。
+- **季後賽模式「整季戰績」顯示 0-0**：不會發生，不論例行賽或季後賽模式，「整季戰績」一律抓真實整季數據顯示（舊版曾有此bug，已修正）。
+- **季後賽模式「近期戰況」是空的或 0**：正常現象，代表該隊尚未打季後賽（已淘汰或還沒開打），季後賽賽程資料本來就是空的。
 - **某些數據顯示 N/A 或 0.0**：通常是該隊本賽季比賽場次太少（例如剛開季）或 ESPN API 暫時沒有資料，
   屬於正常的防呆顯示，不會讓程式中斷。
 - **網路偶發錯誤**：NBA.com 數據抓取已內建自動重試機制，遇到限流會自動等待後重試最多 5 次。
