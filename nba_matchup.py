@@ -276,117 +276,117 @@ def rank_str(r):
         return ''
 
 
-# ── 主流程 ────────────────────────────────────────────────
 
-console.print('[bold orange1]請選擇查詢模式[/]')
-console.print('1. 例行賽')
-console.print('2. 季後賽')
+if __name__ == "__main__":
+    console.print('[bold orange1]請選擇查詢模式[/]')
+    console.print('1. 例行賽')
+    console.print('2. 季後賽')
 
-while True:
-    mode = console.input('請輸入 1 或 2: ').strip()
-    if mode in ('1', '2'):
-        break
-    console.print('[red]請輸入 1 或 2[/red]')
+    while True:
+        mode = console.input('請輸入 1 或 2: ').strip()
+        if mode in ('1', '2'):
+            break
+        console.print('[red]請輸入 1 或 2[/red]')
 
-SEASON_TYPE = '2' if mode == '1' else '3'  # ESPN: 2=例行賽, 3=季後賽
-SHOW_VS500 = (mode == '1')                 # 只有例行賽模式才顯示「五成球隊戰況」
-ESPN_SEASON = get_current_espn_season()
+    SEASON_TYPE = '2' if mode == '1' else '3'  # ESPN: 2=例行賽, 3=季後賽
+    SHOW_VS500 = (mode == '1')                 # 只有例行賽模式才顯示「五成球隊戰況」
+    ESPN_SEASON = get_current_espn_season()
 
-df_adv = fetch_all_nba_stats()
+    df_adv = fetch_all_nba_stats()
 
-# 不論模式都無條件抓全聯盟整季戰績，避免季後賽模式下「整季戰績」顯示0-0
-with console.status('[orange1]📡 載入全聯盟戰績...[/orange1]'):
-    all_standings = fetch_standings(ESPN_SEASON)
+    # 不論模式都無條件抓全聯盟整季戰績，避免季後賽模式下「整季戰績」顯示0-0
+    with console.status('[orange1]📡 載入全聯盟戰績...[/orange1]'):
+        all_standings = fetch_standings(ESPN_SEASON)
 
-while True:
-    raw = console.input('\n[bold orange1]請輸入對戰組合[/] [dim](例：湖人:雷霆，輸入q退出)[/dim]: ').strip()
-    if raw.lower() == 'q':
-        break
-    parsed = parse_input(raw)
-    if not parsed:
-        console.print('[red]格式錯誤，請輸入如：湖人vs雷霆[/red]')
-        continue
+    while True:
+        raw = console.input('\n[bold orange1]請輸入對戰組合[/] [dim](例：湖人:雷霆，輸入q退出)[/dim]: ').strip()
+        if raw.lower() == 'q':
+            break
+        parsed = parse_input(raw)
+        if not parsed:
+            console.print('[red]格式錯誤，請輸入如：湖人vs雷霆[/red]')
+            continue
 
-    cnA, idA, cnB, idB = parsed
+        cnA, idA, cnB, idB = parsed
 
-    with console.status('[orange1]📡 載入戰績數據...[/orange1]'):
-        with ThreadPoolExecutor(max_workers=2) as ex:
-            fa = ex.submit(fetch_espn_team, idA, all_standings, SEASON_TYPE, ESPN_SEASON, SHOW_VS500)
-            fb = ex.submit(fetch_espn_team, idB, all_standings, SEASON_TYPE, ESPN_SEASON, SHOW_VS500)
-            eA, eB = fa.result(), fb.result()
+        with console.status('[orange1]📡 載入戰績數據...[/orange1]'):
+            with ThreadPoolExecutor(max_workers=2) as ex:
+                fa = ex.submit(fetch_espn_team, idA, all_standings, SEASON_TYPE, ESPN_SEASON, SHOW_VS500)
+                fb = ex.submit(fetch_espn_team, idB, all_standings, SEASON_TYPE, ESPN_SEASON, SHOW_VS500)
+                eA, eB = fa.result(), fb.result()
 
-    def get_row(df, nba_id):
-        return df.loc[nba_id] if nba_id in df.index else None
+        def get_row(df, nba_id):
+            return df.loc[nba_id] if nba_id in df.index else None
 
-    advA, advB = get_row(df_adv, idA), get_row(df_adv, idB)
+        advA, advB = get_row(df_adv, idA), get_row(df_adv, idB)
 
-    # Pace 改用 NBA.com Advanced 數據裡官方算好的整季 PACE 欄位，不再用經驗係數估算
-    def get_pace(row, fb=100.0):
-        if row is None or row.get('PACE') is None:
-            return fb
-        return round(float(row.get('PACE')), 1)
+        # Pace 改用 NBA.com Advanced 數據裡官方算好的整季 PACE 欄位，不再用經驗係數估算
+        def get_pace(row, fb=100.0):
+            if row is None or row.get('PACE') is None:
+                return fb
+            return round(float(row.get('PACE')), 1)
 
-    pace_A = get_pace(advA)
-    pace_B = get_pace(advB)
+        pace_A = get_pace(advA)
+        pace_B = get_pace(advB)
 
-    def adv_val(row, col, fb='N/A'):
-        if row is None or row.get(col) is None:
-            return str(fb) if not isinstance(fb, str) else fb
-        return f'{row.get(col):.1f}'
+        def adv_val(row, col, fb='N/A'):
+            if row is None or row.get(col) is None:
+                return str(fb) if not isinstance(fb, str) else fb
+            return f'{row.get(col):.1f}'
 
-    def adv_rank(row, col):
-        return rank_str(row.get(col)) if row is not None else ''
+        def adv_rank(row, col):
+            return rank_str(row.get(col)) if row is not None else ''
 
-    console.print()
-    console.rule(f'[bold orange1]{cnA}  VS  {cnB}[/bold orange1]')
+        console.print()
+        console.rule(f'[bold orange1]{cnA}  VS  {cnB}[/bold orange1]')
 
-    tables = [
-        ('📋 整季戰績', [
-            ('整季戰績',   f'{eA["wins"]}-{eA["losses"]} ({eA["wp"]:.3f})', f'{eB["wins"]}-{eB["losses"]} ({eB["wp"]:.3f})'),
-            ('主場戰績',   eA['home'],  eB['home']),
-            ('客場戰績',   eA['away'],  eB['away']),
-        ]),
-        ('⚡ 進攻 / 防守效率', [
-            ('本賽季進攻效率', f'{adv_val(advA,"OFF_RATING")} {adv_rank(advA,"OFF_RATING_RANK")}',
-                                f'{adv_val(advB,"OFF_RATING")} {adv_rank(advB,"OFF_RATING_RANK")}'),
-            ('本賽季防守效率', f'{adv_val(advA,"DEF_RATING")} {adv_rank(advA,"DEF_RATING_RANK")}',
-                                f'{adv_val(advB,"DEF_RATING")} {adv_rank(advB,"DEF_RATING_RANK")}'),
-        ]),
-    ]
+        tables = [
+            ('📋 整季戰績', [
+                ('整季戰績',   f'{eA["wins"]}-{eA["losses"]} ({eA["wp"]:.3f})', f'{eB["wins"]}-{eB["losses"]} ({eB["wp"]:.3f})'),
+                ('主場戰績',   eA['home'],  eB['home']),
+                ('客場戰績',   eA['away'],  eB['away']),
+            ]),
+            ('⚡ 進攻 / 防守效率', [
+                ('本賽季進攻效率', f'{adv_val(advA,"OFF_RATING")} {adv_rank(advA,"OFF_RATING_RANK")}',
+                                    f'{adv_val(advB,"OFF_RATING")} {adv_rank(advB,"OFF_RATING_RANK")}'),
+                ('本賽季防守效率', f'{adv_val(advA,"DEF_RATING")} {adv_rank(advA,"DEF_RATING_RANK")}',
+                                    f'{adv_val(advB,"DEF_RATING")} {adv_rank(advB,"DEF_RATING_RANK")}'),
+            ]),
+        ]
 
-    if SHOW_VS500:
-        tables.append(('🎯 五成球隊戰況', [
-            ('對五成以上球隊', eA['va500'], eB['va500']),
-            ('對五成以下球隊', eA['vb500'], eB['vb500']),
-        ]))
+        if SHOW_VS500:
+            tables.append(('🎯 五成球隊戰況', [
+                ('對五成以上球隊', eA['va500'], eB['va500']),
+                ('對五成以下球隊', eA['vb500'], eB['vb500']),
+            ]))
 
-    tables += [
-        ('🔥 近期 10 場', [
-            ('戰績',     eA['l10rec'], eB['l10rec']),
-            ('平均得分', eA['l10off'], eB['l10off']),
-            ('平均失分', eA['l10def'], eB['l10def']),
-        ]),
-        ('🔮 預測比分', [
-            # 預測法1「近10場平均」：A預測得分 = (A近10場平均得分 + B近10場平均失分) / 2
-            # 概念：取A的進攻能力與B的防守弱點的平均值
-            ('預測得分 近10場',
-             f'{(float(eA["l10off"]) + float(eB["l10def"])) / 2:.1f}',
-             f'{(float(eB["l10off"]) + float(eA["l10def"])) / 2:.1f}'),
+        tables += [
+            ('🔥 近期 10 場', [
+                ('戰績',     eA['l10rec'], eB['l10rec']),
+                ('平均得分', eA['l10off'], eB['l10off']),
+                ('平均失分', eA['l10def'], eB['l10def']),
+            ]),
+            ('🔮 預測比分', [
+                # 預測法1「近10場平均」：A預測得分 = (A近10場平均得分 + B近10場平均失分) / 2
+                # 概念：取A的進攻能力與B的防守弱點的平均值
+                ('預測得分 近10場',
+                f'{(float(eA["l10off"]) + float(eB["l10def"])) / 2:.1f}',
+                f'{(float(eB["l10off"]) + float(eA["l10def"])) / 2:.1f}'),
 
-            # 預測法2「整季PACE法」：得分效率(得分/整季pace) x 兩隊整季平均節奏
-            # 概念：若本場節奏落在兩隊整季平均值，A用近10場效率大約能拿幾分
-            ('整季PACE法',
-             f'{float(eA["l10off"]) / max(pace_A,1) * (pace_A+pace_B)/2:.1f}',
-             f'{float(eB["l10off"]) / max(pace_B,1) * (pace_A+pace_B)/2:.1f}'),
-        ]),
-    ]
+                # 預測法2「整季PACE法」：得分效率(得分/整季pace) x 兩隊整季平均節奏
+                # 概念：若本場節奏落在兩隊整季平均值，A用近10場效率大約能拿幾分
+                ('整季PACE法',
+                f'{float(eA["l10off"]) / max(pace_A,1) * (pace_A+pace_B)/2:.1f}',
+                f'{float(eB["l10off"]) / max(pace_B,1) * (pace_A+pace_B)/2:.1f}'),
+            ]),
+        ]
 
-    for title, rows in tables:
-        t = Table(title=title, box=box.SIMPLE_HEAVY, show_header=True,
-                  header_style='bold orange1', title_style='bold white', min_width=70)
-        t.add_column('指標',  style='dim',      width=20)
-        t.add_column(cnA,     justify='center', style='cyan',  min_width=22)
-        t.add_column(cnB,     justify='center', style='green', min_width=22)
-        for row in rows:
-            t.add_row(*row)
-        console.print(t)
+        for title, rows in tables:
+            t = Table(title=title, box=box.SIMPLE_HEAVY, show_header=True,
+                    header_style='bold orange1', title_style='bold white', min_width=70)
+            t.add_column('指標',  style='dim',      width=20)
+            t.add_column(cnA,     justify='center', style='cyan',  min_width=22)
+            t.add_column(cnB,     justify='center', style='green', min_width=22)
+            for row in rows:
+                t.add_row(*row)
+            console.print(t)
