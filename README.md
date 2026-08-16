@@ -33,8 +33,8 @@ python nba_matchup.py
 
 ```
 請選擇查詢模式
-  1) 例行賽
-  2) 季後賽
+  1. 例行賽
+  2. 季後賽
 請輸入 1 或 2:
 ```
 
@@ -46,16 +46,16 @@ python nba_matchup.py
 接著會看到提示：
 
 ```
-請輸入對戰組合 (例：湖人:火箭，輸入q退出):
+請輸入對戰組合 (例：尼克:馬刺，輸入q退出):
 ```
 
 輸入兩隊名稱，中間用以下任一種寫法分隔都可以：
 
-- `湖人:火箭`
-- `湖人：火箭`（全形冒號）
-- `湖人vs火箭` / `湖人VS火箭`
-- `湖人 對上 火箭` / `湖人 對決 火箭`
-- `湖人v火箭`
+- `尼克:馬刺`
+- `尼克：馬刺`（全形冒號）
+- `尼克vs馬刺` / `尼克VS馬刺`
+- `尼克 對上 馬刺` / `尼克 對決 馬刺`
+- `尼克v馬刺`
 
 輸入 `q` 結束程式（不需重新選擇模式即可繼續查詢下一組對戰）。
 
@@ -66,16 +66,28 @@ python nba_matchup.py
 
 ---
 
-## 2.5 用 Docker 執行（免裝 Python 環境）
+## 2.5 用 FastAPI 跑成 API 服務
 
-專案內附 `Dockerfile`，也可以直接用容器跑：
-
-```bash
-docker build -t nba-predictor .
-docker run -it nba-predictor
+```powershell
+uvicorn api:app --host 0.0.0.0 --port 8000
 ```
 
-`-it` 是必須的，因為程式是互動式的，會等待輸入模式與對戰組合。
+啟動後開瀏覽器到 `http://localhost:8000/docs` 看 Swagger UI，呼叫 `/matchup?teamA=尼克&teamB=馬刺` 這類端點，回傳結構化 JSON 預測結果（近10場平均法、整季PACE法兩種預測分數）。
+
+⚠️ 目前只能本機存取（`localhost` 只代表「這台電腦自己」），要讓其他人也連得到，需要部署到有公開 IP 的雲端主機（例如 AWS EC2），或用 ngrok 之類的工具做臨時穿透分享。
+
+⚠️ 伺服器啟動後約需 20~30 秒才會開始接受請求（啟動時會先抓取整季 NBA/ESPN 數據快取起來，之後每次呼叫 `/matchup` 才會快），這段時間屬正常現象，終端機顯示 `Application startup complete` 才代表真正就緒。
+
+---
+
+## 2.6 用 Docker 執行
+
+```bash
+docker build -t nba-api .
+docker run -p 8000:8000 nba-api
+```
+
+⚠️ **`Dockerfile` 的 `CMD` 啟動的是 FastAPI 服務（`uvicorn api:app`），不是互動式 CLI**——容器跑起來後一樣是連到 `http://localhost:8000/docs` 使用，跟上面「用 FastAPI 跑成 API 服務」是同一個服務、只是換成容器化的方式啟動。如果想要互動式 CLI 版本，直接用「2. 執行方式」教的 `python nba_matchup.py`（不透過 Docker）。
 
 ---
 
@@ -102,3 +114,11 @@ docker run -it nba-predictor
 - **某些數據顯示 N/A 或 0.0**：通常是該隊本賽季比賽場次太少（例如剛開季）或 ESPN API 暫時沒有資料，
   屬於正常的防呆顯示，不會讓程式中斷。
 - **網路偶發錯誤**：NBA.com 數據抓取已內建自動重試機制，遇到限流會自動等待後重試最多 5 次。
+
+---
+
+## 5. CI/CD
+
+`.github/workflows/ci.yml` 在每次 push 到 `main` 時自動執行：安裝套件 → 匯入檢查 `nba_matchup.py` 與 `api.py` → 建置並推送 Docker 映像檔到 `ghcr.io/kop030183/nba-matchup-predictor`。
+
+兩支主要程式（CLI 邏輯 `nba_matchup.py`、API 服務 `api.py`）都有被 CI 的匯入檢查覆蓋到，語法錯誤或缺少套件會直接讓 CI 失敗，不會被忽略。
