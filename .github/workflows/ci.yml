@@ -18,6 +18,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: python -c "import nba_matchup"
+      - run: python -c "import api"
 
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin

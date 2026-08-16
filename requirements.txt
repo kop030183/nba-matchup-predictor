@@ -2,3 +2,5 @@ requests
 rich
 pandas
 nba_api
+fastapi
+uvicorn
