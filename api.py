@@ -10,6 +10,7 @@ ESPN_SEASON = None
 
 @app.on_event("startup")
 def load_data():
+    """伺服器啟動時預先抓取全聯盟數據並快取，避免每次請求都重抓。"""
     global df_adv, all_standings, ESPN_SEASON
     ESPN_SEASON = get_current_espn_season()
     df_adv = fetch_all_nba_stats()
@@ -17,6 +18,7 @@ def load_data():
 
 @app.get("/matchup")
 def matchup(teamA: str, teamB: str):
+    """輸入兩隊中文隊名，回傳「近10場平均法」與「整季PACE法」兩種預測比分。"""
     if teamA not in TEAM_MAP or teamB not in TEAM_MAP:
         raise HTTPException(status_code=400, detail="球隊名稱無法辨識，請確認中文隊名是否正確")
     idA = TEAM_MAP[teamA]

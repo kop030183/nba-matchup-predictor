@@ -18,29 +18,20 @@ from nba_api.stats.endpoints import leaguedashteamstats
 #   6. 重複步驟4~5，直到使用者輸入 q
 # ============================================================
 
-
 def get_current_espn_season():
-    """
-    回傳 ESPN API 用的賽季年份（賽季「結束」那一年，例如 2025-26 賽季回傳 2026）。
-    NBA 賽季固定 10 月開打、隔年 6 月打完，所以 10 月(含)之後算新賽季開始。
-    """
+    """回傳目前賽季對應的ESPN季末年份(球季跨兩個日曆年，10月後算下一年)。"""
     now = datetime.now()
     return now.year + 1 if now.month >= 10 else now.year
 
 
 def get_current_nba_season_str():
-    """回傳 NBA.com API 用的賽季字串，例如 '2025-26'。"""
+    """把季末年份轉成NBA.com慣用的"YYYY-YY"格式字串。"""
     end_year = get_current_espn_season()
     return f"{end_year - 1}-{str(end_year)[2:]}"
 
 
 def nba_fetch(fn, retries=5, delay=10):
-    """
-    NBA.com 對高頻請求很容易限流，這個包裝函式：
-      1. 呼叫前固定等待 delay 秒
-      2. 重置 session，避免沿用可能被標記的連線
-      3. 失敗就以遞增秒數重試，最多 retries 次，最後一次仍失敗才拋出例外
-    """
+    """呼叫NBA.com API的包裝函式，遇到限流會自動等待重試(最多5次)。"""
     from nba_api.stats.library.http import NBAStatsHTTP
     for i in range(retries):
         try:
@@ -60,8 +51,6 @@ console = Console()
 BASE = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
 STANDINGS_URL = 'https://site.api.espn.com/apis/v2/sports/basketball/nba/standings'
 
-# 中文球隊俗名 -> NBA.com 官方 TEAM_ID 對照表
-# '小牛'/'獨行俠' 對應同一支球隊，因為中文譯名曾經改過，兩種叫法都支援
 TEAM_MAP = {
     '塞爾提克':1610612738,'籃網':1610612751,'尼克':1610612752,'七六人':1610612755,'暴龍':1610612761,
     '公牛':1610612741,'騎士':1610612739,'活塞':1610612765,'溜馬':1610612754,'公鹿':1610612749,
@@ -71,7 +60,6 @@ TEAM_MAP = {
     '小牛':1610612742,'獨行俠':1610612742,'火箭':1610612745,'灰熊':1610612763,'鵜鶘':1610612740,'馬刺':1610612759,
 }
 
-# NBA.com TEAM_ID -> ESPN team id 對照表（兩邊系統用不同編號，需要轉換才能組出 ESPN API 網址）
 ESPN_ID = {
     1610612738:2,  1610612751:17, 1610612752:18, 1610612755:20, 1610612761:28,
     1610612741:4,  1610612739:5,  1610612765:8,  1610612754:11, 1610612749:15,
@@ -83,10 +71,7 @@ ESPN_ID = {
 
 
 def get_espn(url):
-    """
-    呼叫 ESPN API 並回傳 JSON；任何錯誤（逾時、非200、解析失敗）都回傳空 dict，
-    後續一律用 .get(...) 搭配預設值讀取，避免程式崩潰。
-    """
+    """對ESPN API發GET請求，失敗時回傳空字典而不是丟例外。"""
     try:
         r = requests.get(url, timeout=10)
         return r.json() if r.ok else {}
@@ -95,10 +80,7 @@ def get_espn(url):
 
 
 def to_score(v):
-    """
-    把 ESPN 回傳的比分欄位轉成 float。欄位有時是數字字串，有時是
-    {'value':..., 'displayValue':...} 這種 dict，轉換失敗一律回傳 0.0。
-    """
+    """把ESPN回傳的分數欄位(可能是數字、字串或巢狀字典)統一轉成float。"""
     if isinstance(v, dict):
         v = v.get('value') or v.get('displayValue') or 0
     try:
@@ -108,10 +90,7 @@ def to_score(v):
 
 
 def fetch_all_nba_stats():
-    """
-    一次性抓取全聯盟30隊的進階數據（進攻/防守效率、PACE 及聯盟排名），
-    之後查詢對戰組合時直接查表（df.loc[...]），不必每次重新呼叫 API。
-    """
+    """抓取全聯盟30隊的進攻/防守效率等進階數據(NBA.com)。"""
     with console.status('[orange1]📡 載入聯盟進階數據...[/orange1]'):
         df_adv = nba_fetch(lambda: leaguedashteamstats.LeagueDashTeamStats(
             season=get_current_nba_season_str(),
@@ -123,15 +102,7 @@ def fetch_all_nba_stats():
 
 
 def fetch_standings(espn_season):
-    """
-    一次性抓取全聯盟的完整戰績（總戰績、主客場戰績、勝率）。
-
-    註：舊版原本逐隊呼叫 /teams/{id} 讀取 team.record.items，但 ESPN 已棄用
-    該欄位（恆為空 dict），改用 standings 端點一次拿到全聯盟資料，
-    比逐隊呼叫更準確也更有效率。
-
-    回傳：{ESPN球隊id(字串): {'wins', 'losses', 'win_percent', 'home', 'road'}}
-    """
+    """抓取全聯盟30隊的戰績/勝率排名(ESPN)。"""
     data = get_espn(f'{STANDINGS_URL}?season={espn_season}')
     result = {}
     for conference in data.get('children', []):
@@ -157,25 +128,10 @@ def fetch_standings(espn_season):
 
 
 def fetch_espn_team(nba_id, all_standings, season_type, espn_season, show_vs500):
-    """
-    抓取單一球隊的近況資料，回傳 dict：
-      - 整季戰績/主客場戰績/勝率：來自 fetch_standings() 已抓好的資料
-      - 整季場均得失分：從逐場真實比分算出（近10場pace估算會用到）
-      - 近10場戰績、每場得失分：來自賽程 API 逐場計算
-      - (例行賽限定) 對五成以上/以下球隊戰績
-
-    參數：
-      nba_id：NBA.com TEAM_ID，查 ESPN_ID 對照表轉成 ESPN 隊伍編號
-      all_standings：fetch_standings() 的回傳值，不論模式都要傳入真實資料
-                     （不能傳 None，否則整季戰績會顯示 0-0/N/A）
-      season_type：ESPN 賽季類型，2=例行賽、3=季後賽
-      espn_season：ESPN 用的賽季年份，見 get_current_espn_season()
-      show_vs500：是否計算「對五成球隊戰況」，只有例行賽模式為 True
-    """
+    """抓取單一球隊的賽程與近況，計算近10場戰績、對戰五成以上/以下球隊的勝負紀錄。"""
     eid = str(ESPN_ID.get(nba_id, ''))
     own = all_standings.get(eid, {})
 
-    # 必須帶 season 參數，否則休賽期間 ESPN 無法判斷「目前賽季」而回傳空賽程
     sched_data = get_espn(f'{BASE}/teams/{eid}/schedule?seasontype={season_type}&season={espn_season}')
 
     evts = sched_data.get('events', [])
@@ -190,10 +146,8 @@ def fetch_espn_team(nba_id, all_standings, season_type, espn_season, show_vs500)
     l10opp_list = []
     season_pts_list = []
     season_opp_list = []
-    vaW = vaL = vbW = vbL = 0  # va=對五成以上球隊的勝/負；vb=對五成以下球隊的勝/負
+    vaW = vaL = vbW = vbL = 0 
 
-    # 無條件跑過整季已完賽比賽，統計整季場均得失分；
-    # 五成球隊戰況只在例行賽模式(show_vs500=True)才順便計算，避免對completed重複跑兩次迴圈
     for ev in completed:
         comp = ev.get('competitions', [{}])[0]
         me = next((c for c in comp.get('competitors', []) if str(c.get('team', {}).get('id')) == eid), None)
@@ -226,7 +180,7 @@ def fetch_espn_team(nba_id, all_standings, season_type, espn_season, show_vs500)
         l10pts_list.append(int(to_score(me.get('score', 0))))
         l10opp_list.append(int(to_score(opp.get('score', 0))))
 
-    n = len(l10pts_list) or 1  # 避免近10場一場都沒有時除以0
+    n = len(l10pts_list) or 1 
     sn = len(season_pts_list) or 1
 
     return {
@@ -236,8 +190,8 @@ def fetch_espn_team(nba_id, all_standings, season_type, espn_season, show_vs500)
         'l10rec': f'{l10w}-{l10l}',
         'l10off': f'{sum(l10pts_list)/n:.1f}',
         'l10def': f'{sum(l10opp_list)/n:.1f}',
-        'season_off': f'{sum(season_pts_list)/sn:.1f}',  # 整季場均得分(逐場真實比分算出)
-        'season_def': f'{sum(season_opp_list)/sn:.1f}',  # 整季場均失分
+        'season_off': f'{sum(season_pts_list)/sn:.1f}', 
+        'season_def': f'{sum(season_opp_list)/sn:.1f}', 
         'va500': f'{vaW}-{vaL}',
         'vb500': f'{vbW}-{vbL}',
         'l10pts': ' / '.join(str(p) for p in l10pts_list),
@@ -246,18 +200,13 @@ def fetch_espn_team(nba_id, all_standings, season_type, espn_season, show_vs500)
 
 
 def parse_input(raw):
-    """
-    解析使用者輸入的對戰字串，支援：湖人:火箭 / 湖人：火箭 / 湖人vs火箭 /
-    湖人VS火箭 / 湖人 對上 火箭 / 湖人 對決 火箭 / 湖人v火箭。
-    回傳 (中文隊名A, NBA_ID_A, 中文隊名B, NBA_ID_B)，格式不對或隊名無法辨識回傳 None。
-    """
+    """解析使用者輸入的對戰組合文字(支援多種分隔符)，回傳兩隊的中文名與球隊ID。"""
     parts = re.split(r'\s*(?:vs\.?|VS\.?|對上|對決|v|:|：)\s*', raw.strip())
     parts = [p.strip() for p in parts if p.strip()]
     if len(parts) < 2:
         return None
 
     def resolve(s):
-        # 用「包含」而不是「完全相等」比對，容錯像「洛杉磯湖人」這種輸入
         for cn, nba_id in TEAM_MAP.items():
             if cn in s:
                 return cn, nba_id
@@ -269,7 +218,7 @@ def parse_input(raw):
 
 
 def rank_str(r):
-    """把排名數字轉成 "(#3)" 格式；r 是 NaN/None/無法轉換時回傳空字串。"""
+    """把排名數字格式化成"(#N)"顯示字串。"""
     try:
         return f'(#{int(r)})'
     except Exception:
@@ -289,17 +238,17 @@ if __name__ == "__main__":
         console.print('[red]請輸入 1 或 2[/red]')
 
     SEASON_TYPE = '2' if mode == '1' else '3'  # ESPN: 2=例行賽, 3=季後賽
-    SHOW_VS500 = (mode == '1')                 # 只有例行賽模式才顯示「五成球隊戰況」
+    SHOW_VS500 = (mode == '1')                 
     ESPN_SEASON = get_current_espn_season()
 
     df_adv = fetch_all_nba_stats()
 
-    # 不論模式都無條件抓全聯盟整季戰績，避免季後賽模式下「整季戰績」顯示0-0
+
     with console.status('[orange1]📡 載入全聯盟戰績...[/orange1]'):
         all_standings = fetch_standings(ESPN_SEASON)
 
     while True:
-        raw = console.input('\n[bold orange1]請輸入對戰組合[/] [dim](例：湖人:雷霆，輸入q退出)[/dim]: ').strip()
+        raw = console.input('\n[bold orange1]請輸入對戰組合[/] [dim](例：尼克:馬刺，輸入q退出)[/dim]: ').strip()
         if raw.lower() == 'q':
             break
         parsed = parse_input(raw)
@@ -320,7 +269,6 @@ if __name__ == "__main__":
 
         advA, advB = get_row(df_adv, idA), get_row(df_adv, idB)
 
-        # Pace 改用 NBA.com Advanced 數據裡官方算好的整季 PACE 欄位，不再用經驗係數估算
         def get_pace(row, fb=100.0):
             if row is None or row.get('PACE') is None:
                 return fb
@@ -367,14 +315,10 @@ if __name__ == "__main__":
                 ('平均失分', eA['l10def'], eB['l10def']),
             ]),
             ('🔮 預測比分', [
-                # 預測法1「近10場平均」：A預測得分 = (A近10場平均得分 + B近10場平均失分) / 2
-                # 概念：取A的進攻能力與B的防守弱點的平均值
                 ('預測得分 近10場',
                 f'{(float(eA["l10off"]) + float(eB["l10def"])) / 2:.1f}',
                 f'{(float(eB["l10off"]) + float(eA["l10def"])) / 2:.1f}'),
 
-                # 預測法2「整季PACE法」：得分效率(得分/整季pace) x 兩隊整季平均節奏
-                # 概念：若本場節奏落在兩隊整季平均值，A用近10場效率大約能拿幾分
                 ('整季PACE法',
                 f'{float(eA["l10off"]) / max(pace_A,1) * (pace_A+pace_B)/2:.1f}',
                 f'{float(eB["l10off"]) / max(pace_B,1) * (pace_A+pace_B)/2:.1f}'),
