@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from nba_matchup import fetch_all_nba_stats, fetch_standings, fetch_espn_team, TEAM_MAP, get_current_espn_season
+from nba_matchup import fetch_all_nba_stats, fetch_standings, fetch_espn_team, TEAM_MAP, get_current_espn_season, HOME_ADVANTAGE
 from fastapi import HTTPException
 
 app = FastAPI()
@@ -18,7 +18,8 @@ def load_data():
 
 @app.get("/matchup")
 def matchup(teamA: str, teamB: str):
-    """輸入兩隊中文隊名，回傳「近10場平均法」與「整季PACE法」兩種預測比分。"""
+    """輸入兩隊中文隊名，回傳「近10場平均法」與「PACE調整法」兩種預測比分。
+    teamA為客隊、teamB為主隊，主隊預測分已加上主場優勢加成。"""
     if teamA not in TEAM_MAP or teamB not in TEAM_MAP:
         raise HTTPException(status_code=400, detail="球隊名稱無法辨識，請確認中文隊名是否正確")
     idA = TEAM_MAP[teamA]
@@ -39,14 +40,17 @@ def matchup(teamA: str, teamB: str):
     pace_A = get_pace(advA)
     pace_B = get_pace(advB)
     predict_l10_A = (float(eA["l10off"]) + float(eB["l10def"])) / 2
-    predict_l10_B = (float(eB["l10off"]) + float(eA["l10def"])) / 2
+    predict_l10_B = (float(eB["l10off"]) + float(eA["l10def"])) / 2 + HOME_ADVANTAGE
 
-    predict_pace_A = float(eA["l10off"]) / max(pace_A, 1) * (pace_A + pace_B) / 2
-    predict_pace_B = float(eB["l10off"]) / max(pace_B, 1) * (pace_A + pace_B) / 2
+    avg_pace = (pace_A + pace_B) / 2
+    predict_pace_A = (float(eA["season_off"]) / max(pace_A, 1) * avg_pace
+                       + float(eB["season_def"]) / max(pace_B, 1) * avg_pace) / 2
+    predict_pace_B = (float(eB["season_off"]) / max(pace_B, 1) * avg_pace
+                       + float(eA["season_def"]) / max(pace_A, 1) * avg_pace) / 2 + HOME_ADVANTAGE
 
     return {
         "teamA": teamA,
         "teamB": teamB,
         "近10場平均法": {"teamA": round(predict_l10_A, 1), "teamB": round(predict_l10_B, 1)},
-        "整季PACE法": {"teamA": round(predict_pace_A, 1), "teamB": round(predict_pace_B, 1)},
+        "PACE調整法": {"teamA": round(predict_pace_A, 1), "teamB": round(predict_pace_B, 1)},
     }

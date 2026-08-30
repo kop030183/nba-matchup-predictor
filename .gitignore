@@ -5,3 +5,17 @@ __pycache__/
 # 虛擬環境
 .venv/
 venv/
+
+# backtest 執行期產生的檔案
+backtest/result.pkl
+backtest/stats_extra.pkl
+backtest/home_advantage_result.pkl
+backtest/final_numbers.pkl
+backtest/NBA_backtest_report.xlsx
+backtest/NBA_主場優勢測試摘要.xlsx
+backtest/NBA_三季回測_最終摘要.xlsx
+backtest/NBA預測小工具回測數值表_v2.xlsx
+backtest/*.csv
+
+# 資料庫實驗腳本(load_teams.py裡有寫死的本機測試密碼，不進版控)
+db/

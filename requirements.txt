@@ -4,3 +4,4 @@ pandas
 nba_api
 fastapi
 uvicorn
+psycopg2-binary

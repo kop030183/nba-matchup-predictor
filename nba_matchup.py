@@ -16,7 +16,11 @@ from nba_api.stats.endpoints import leaguedashteamstats
 #   4. 使用者輸入兩支球隊 -> 平行呼叫 ESPN 賽程 API，抓兩隊的近況
 #   5. 整合三份數據，計算兩種預測比分，用 rich 套件畫成表格
 #   6. 重複步驟4~5，直到使用者輸入 q
+#
+# 輸入慣例：「客隊:主隊」，後面輸入的那隊是主場（例：尼克:馬刺 -> 馬刺主場）
 # ============================================================
+
+HOME_ADVANTAGE = 1  # 主場優勢加成(分)，回測驗證三季合併後兩種預測法正確率均提升約0.6個百分點
 
 def get_current_espn_season():
     """回傳目前賽季對應的ESPN季末年份(球季跨兩個日曆年，10月後算下一年)。"""
@@ -248,7 +252,7 @@ if __name__ == "__main__":
         all_standings = fetch_standings(ESPN_SEASON)
 
     while True:
-        raw = console.input('\n[bold orange1]請輸入對戰組合[/] [dim](例：尼克:馬刺，輸入q退出)[/dim]: ').strip()
+        raw = console.input('\n[bold orange1]請輸入對戰組合[/] [dim](例：(客隊):(主隊)，輸入q退出)[/dim]: ').strip()
         if raw.lower() == 'q':
             break
         parsed = parse_input(raw)
@@ -286,7 +290,7 @@ if __name__ == "__main__":
             return rank_str(row.get(col)) if row is not None else ''
 
         console.print()
-        console.rule(f'[bold orange1]{cnA}  VS  {cnB}[/bold orange1]')
+        console.rule(f'[bold orange1]{cnA}(客)  VS  {cnB}(主)[/bold orange1]')
 
         tables = [
             ('📋 整季戰績', [
@@ -317,11 +321,11 @@ if __name__ == "__main__":
             ('🔮 預測比分', [
                 ('預測得分 近10場',
                 f'{(float(eA["l10off"]) + float(eB["l10def"])) / 2:.1f}',
-                f'{(float(eB["l10off"]) + float(eA["l10def"])) / 2:.1f}'),
+                f'{(float(eB["l10off"]) + float(eA["l10def"])) / 2 + HOME_ADVANTAGE:.1f}'),
 
-                ('整季PACE法',
-                f'{float(eA["l10off"]) / max(pace_A,1) * (pace_A+pace_B)/2:.1f}',
-                f'{float(eB["l10off"]) / max(pace_B,1) * (pace_A+pace_B)/2:.1f}'),
+                ('PACE調整法',
+                f'{(float(eA["season_off"]) / max(pace_A,1) * (pace_A+pace_B)/2 + float(eB["season_def"]) / max(pace_B,1) * (pace_A+pace_B)/2) / 2:.1f}',
+                f'{(float(eB["season_off"]) / max(pace_B,1) * (pace_A+pace_B)/2 + float(eA["season_def"]) / max(pace_A,1) * (pace_A+pace_B)/2) / 2 + HOME_ADVANTAGE:.1f}'),
             ]),
         ]
 
