@@ -5,7 +5,14 @@
 
 ---
 
-## 1. 環境準備
+## 1. 取得專案原始碼
+
+```bash
+git clone https://github.com/kop030183/nba-matchup-predictor.git
+cd nba-matchup-predictor
+```
+
+## 2. 環境準備
 
 ```powershell
 # Windows (PowerShell)
@@ -18,12 +25,12 @@ pip install -r requirements.txt
 # macOS / Linux
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 ---
 
-## 2. 執行方式
+## 3. 執行方式
 
 ```powershell
 python nba_matchup.py
@@ -66,7 +73,7 @@ python nba_matchup.py
 
 ---
 
-## 2.5 用 FastAPI 跑成 API 服務
+## 3.5 用 FastAPI 跑成 API 服務
 
 ```powershell
 uvicorn api:app --host 0.0.0.0 --port 8000
@@ -80,18 +87,18 @@ uvicorn api:app --host 0.0.0.0 --port 8000
 
 ---
 
-## 2.6 用 Docker 執行
+## 3.6 用 Docker 執行
 
 ```bash
 docker build -t nba-api .
 docker run -p 8000:8000 nba-api
 ```
 
-⚠️ **`Dockerfile` 的 `CMD` 啟動的是 FastAPI 服務（`uvicorn api:app`），不是互動式 CLI**——容器跑起來後一樣是連到 `http://localhost:8000/docs` 使用，跟上面「用 FastAPI 跑成 API 服務」是同一個服務、只是換成容器化的方式啟動。如果想要互動式 CLI 版本，直接用「2. 執行方式」教的 `python nba_matchup.py`（不透過 Docker）。
+⚠️ **`Dockerfile` 的 `CMD` 啟動的是 FastAPI 服務（`uvicorn api:app`），不是互動式 CLI**——容器跑起來後一樣是連到 `http://localhost:8000/docs` 使用，跟上面「用 FastAPI 跑成 API 服務」是同一個服務、只是換成容器化的方式啟動。如果想要互動式 CLI 版本，直接用「3. 執行方式」教的 `python nba_matchup.py`（不透過 Docker）。
 
 ---
 
-## 3. 輸出內容說明
+## 4. 輸出內容說明
 
 每次查詢會印出多張表格：
 
@@ -105,7 +112,7 @@ docker run -p 8000:8000 nba-api
 
 ---
 
-## 4. 常見問題
+## 5. 常見問題
 
 - **第一次查詢要等很久**：程式會先呼叫 NBA.com API 取得整季進階數據，
   為了避免被限流，呼叫前會固定等待約 10 秒，這是正常現象，只有第一次需要等。
@@ -117,7 +124,7 @@ docker run -p 8000:8000 nba-api
 
 ---
 
-## 5. CI/CD
+## 6. CI/CD
 
 `.github/workflows/ci.yml` 在每次 push 到 `main` 時自動執行：安裝套件 → 匯入檢查 `nba_matchup.py` 與 `api.py` → 建置並推送 Docker 映像檔到 `ghcr.io/kop030183/nba-matchup-predictor`。
 
